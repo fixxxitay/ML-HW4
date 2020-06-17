@@ -12,8 +12,10 @@ from matplotlib.patches import Ellipse
 from sklearn.datasets.samples_generator import make_blobs
 from sklearn.mixture import GaussianMixture
 from sklearn.ensemble import RandomForestClassifier
-
+from scipy.spatial.distance import euclidean
+from itertools import combinations
 from features import right_feature_set
+
 
 from_num_to_label = {0: 'Blues', 1: 'Browns', 2: 'Greens', 3: 'Greys', 4: 'Khakis',
                      5: 'Oranges', 6: 'Pinks', 7: 'Purples', 8: 'Reds',
@@ -180,42 +182,19 @@ def get_groups_label_using_kmeans(x_train, kmeans):
     return kmeans.labels_
 
 
-def predict_coalition_from_test(x_test, y_test, threshold):
-    test_coalition = []
-    kmeans = KMeans(n_clusters=2, init='k-means++', max_iter=600, n_init=10, random_state=0)
-    two_group_labels_test = get_groups_label_using_kmeans(x_test, kmeans)
-
-    results_test = calc_ratio_in_coalition(two_group_labels_test, y_test)
-    print(results_test)
-
-    coalition, opposition = get_coalition_opposition(results_test, threshold)
-    print("the coalition is: ")
-    print(coalition)
-    print("the opposition is: ")
-    print(opposition)
-    labels_ratio = y_test.value_counts(normalize=True)
-    print("labels ratio is: ")
-    print(labels_ratio)
-    print_ratio_with_label(labels_ratio)
-    size_coalition = calc_size_coalition(coalition, labels_ratio)
-
-    print(size_coalition)
-    return test_coalition
-
-
 def main():
     x_test, x_train, x_validation, y_test, y_train, y_validation = load_prepared_data()
 
-    print_variance_before_choose_coalition(x_train)
-    coalition_by_k_means_clustering = coalition_by_k_means_cluster(x_test, x_train, x_validation,
-                                                                   y_test, y_train, y_validation)
-    print_variance_after_choose_coalition(coalition_by_k_means_clustering, x_train)
+    # print_variance_before_choose_coalition(x_train)
+    # coalition_by_k_means_clustering = coalition_by_k_means_cluster(x_test, x_train, x_validation,
+    #                                                                y_test, y_train, y_validation)
+    # print_variance_after_choose_coalition(coalition_by_k_means_clustering, x_train)
+
 
     # X = generate_blobs()
     # plot_blobs(X)
     # run_plot_gmm(X)
-
-    # get_coalition_by_generative(df_train, df_val, df_test, y_pred_test)
+    get_coalition_by_generative(x_train, x_validation, x_test, y_test, y_train, y_validation)
     # get_strongest_features_by_dt(df_train)
     # build_stronger_coalition(df_train, df_val)
     # build_alternative_coalition(df_train, df_val, classifier)
@@ -435,46 +414,113 @@ def which_group_is_bigger(two_group_labels_train, position, k):
     return len_list.index(len_list[-position])
 
 
-def gaussian_nb_hyperparametrs_tuning(x_train, y_train, k_fold: int = 5):
-    guassien_naive_base = (
+def gaussian_nb_hyperparametrs_tuning(x_train, y_train):
+    guassien_naive_base = [
         GaussianNB(var_smoothing=1e-7),
         GaussianNB(var_smoothing=1e-8),
         GaussianNB(var_smoothing=1e-9),
         GaussianNB(var_smoothing=1e-10)
-    )
-    best_score = float('-inf')
-    best_clf = None
-    for clf in guassien_naive_base:
-        _score = score(x_train=x_train, y_train=y_train, clf=clf, k=k_fold)
-        if _score > best_score:
-            best_score = _score
-            best_clf = clf
-
-    return best_clf, best_score
+    ]
+    return choose_hyper_parameter(guassien_naive_base, x_train, y_train)
 
 
-def get_coalition_by_generative(x_train, x_validation, x_test, y_test):
-    gaussian_nb_clf, gaussian_nb_score = gaussian_nb_hyperparametrs_tuning(df_train)
+def labels_generative_mean(x_train, y_train, clf):
+    label_mean_dict = dict()
+    for _party in from_num_to_label.keys():
+        y_train_party_one_hot = to_binary_class(y_train, _party)
+        clf.fit(x_train, y_train_party_one_hot)
+        _index = list(clf.classes_).index(True)
+        _mean_vector = clf.theta_[_index]
+        label_mean_dict[_party] = _mean_vector
 
-    labels_guassian_mean = labels_generative_mean(df_train, gaussian_nb_clf)
-
-    x_val, y_val = divide_data(df_val)
-    naive_base_coalitions = build_coalition_using_generative_data(y_val, labels_guassian_mean)
-    qda_coalitions = build_coalition_using_generative_data(y_val, labels_qda_mean)
-
-    coalition_nb, coalition_nb_feature_variance = get_most_homogeneous_coalition(df_val, naive_base_coalitions)
-    coalition_nb_size = get_coalition_size(y_val, coalition_nb[1])
-    print(f"coalition using Gaussian Naive Base model is {coalition_nb} with size of {coalition_nb_size}")
-    plot_feature_variance(selected_numerical_features, coalition_nb_feature_variance)
+    return label_mean_dict
 
 
-    coalitions_generative = build_coalition_using_generative_data(y_test, labels_guassian_mean)
-    coalitions_generative, coalition_feature_variance = get_most_homogeneous_coalition(df_test, coalitions_generative)
-    coalitions_generative_size = get_coalition_size(y_test, coalitions_generative[1])
-    print(f"TEST coalition using Gaussian Naive Base model is {coalitions_generative} with size of {coalitions_generative_size}")
-    plot_feature_variance(selected_numerical_features, coalition_qda_feature_variance)
+def divide_data(df, data_class="Vote"):
+    x_df = df.loc[:, df.columns != data_class]
+    y_df = df[data_class]
+    return x_df, y_df
 
-    return coalitions_generative
+
+def to_binary_class(y_train, value):
+    y_train = y_train == value
+    return y_train
+
+
+def filter_possible_coalitions(possible_coalitions: dict):
+    # remove duplicates
+    filtered_possible_coalitions = dict()
+    for _coalition_name, _coalition_list in possible_coalitions.items():
+        _coalition_list.sort()
+        if _coalition_list not in filtered_possible_coalitions.values():
+            filtered_possible_coalitions[_coalition_name] = _coalition_list
+    return filtered_possible_coalitions
+
+
+def get_coalition_list_generative(y_test, ref_label_index, d_dict):
+    coalition_list = []
+    parties_list = from_num_to_label.keys()
+    aux_list = [(_l, d_dict[ref_label_index, _l]) for _l in parties_list if _l != ref_label_index]
+    aux_list.sort(key=lambda tup: tup[1])
+    coalition_list.append(ref_label_index)
+    coalition_size = get_coalition_size(y_test, coalition_list)
+    while coalition_size < 0.51:
+        coalition_list.append(aux_list.pop()[0])
+        coalition_size = get_coalition_size(y_test, coalition_list)
+    coalition_list.sort()
+    return coalition_list
+
+
+def get_coalition_size(y_test, coalition):
+    coalition_chunk = np.count_nonzero(np.in1d(y_test, np.array(coalition)))
+    return coalition_chunk / np.size(y_test)
+
+
+def get_possible_coalitions_generative(distance_dictionary, y_test):
+    possible_coalitions_generative = {}
+    for _label, label_index in from_label_to_num.items():
+        possible_coalitions_generative[f"{_label}_based_coalition"] = \
+            get_coalition_list_generative(y_test, label_index, distance_dictionary)
+    return possible_coalitions_generative
+
+
+def labels_distance_dictionary(labels_mean_dictionary):
+    dst_dict = dict()
+    for _label_1, _label_2 in combinations(from_num_to_label.keys(), 2):
+        _mean_vector_label_1 = labels_mean_dictionary[_label_1]
+        _mean_vector_label_2 = labels_mean_dictionary[_label_2]
+        dst_dict[(_label_1, _label_2)] = euclidean(_mean_vector_label_1, _mean_vector_label_2)
+        dst_dict[(_label_2, _label_1)] = dst_dict[(_label_1, _label_2)]
+    return dst_dict
+
+
+def build_coalition_using_generative_data(y_test, parties_mean_dictionary):
+
+    distance_dictionary = labels_distance_dictionary(parties_mean_dictionary)
+    possible_coalitions_generative = get_possible_coalitions_generative(distance_dictionary, y_test)
+    return filter_possible_coalitions(possible_coalitions_generative)
+
+
+def get_coalition_by_generative(x_train, x_validation, x_test, y_test, y_train, y_validation):
+    gaussian_nb_clf, gaussian_nb_score = gaussian_nb_hyperparametrs_tuning(x_train, y_train)
+    labels_gaussian_mean = labels_generative_mean(x_train, y_train,  gaussian_nb_clf)
+
+    naive_base_coalitions = build_coalition_using_generative_data(y_validation, labels_gaussian_mean)
+    print("naive base coalitions is: ")
+    print(naive_base_coalitions)
+    # coalition_nb, coalition_nb_feature_variance = get_most_homogeneous_coalition(df_val, naive_base_coalitions)
+    # coalition_nb_size = get_coalition_size(y_val, coalition_nb[1])
+    # print(f"coalition using Gaussian Naive Base model is {coalition_nb} with size of {coalition_nb_size}")
+    # plot_feature_variance(selected_numerical_features, coalition_nb_feature_variance)
+    #
+    #
+    # coalitions_generative = build_coalition_using_generative_data(y_test, labels_guassian_mean)
+    # coalitions_generative, coalition_feature_variance = get_most_homogeneous_coalition(df_test, coalitions_generative)
+    # coalitions_generative_size = get_coalition_size(y_test, coalitions_generative[1])
+    # print(f"TEST coalition using Gaussian Naive Base model is {coalitions_generative} with size of {coalitions_generative_size}")
+    # plot_feature_variance(selected_numerical_features, coalition_qda_feature_variance)
+
+    return labels_gaussian_mean
 
 
 if __name__ == '__main__':
