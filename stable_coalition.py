@@ -44,9 +44,9 @@ def load_prepared_data():
     return x_test, x_train, x_validation, y_test, y_train, y_validation
 
 
-def plot_feature_variance(features, coalition_feature_variance, title):
-    plt.barh(features, coalition_feature_variance)
+def draw_variances(features, variances, title):
     plt.title(title)
+    plt.barh(features, variances)
     plt.show()
 
 
@@ -73,10 +73,9 @@ def get_groups_label_using_kmeans(x_train, kmeans):
     return kmeans.labels_
 
 
-
 def print_variance_before_choose_coalition(x_train):
     x_train_var = x_train.var(axis=0)[right_feature_set]
-    plot_feature_variance(right_feature_set, x_train_var, "feature_variance")
+    draw_variances(right_feature_set, x_train_var, "feature_variance")
 
 
 def print_variance_after_choose_coalition(coalition_by_k_means_clustering, x_train):
@@ -85,7 +84,7 @@ def print_variance_after_choose_coalition(coalition_by_k_means_clustering, x_tra
         coalition_index.append(from_label_to_num[party])
     x_train_coalition = x_train.loc[coalition_index]
     x_train_coalition_var = x_train_coalition.var(axis=0)[right_feature_set]
-    plot_feature_variance(right_feature_set, x_train_coalition_var, "coalition_feature_variance")
+    draw_variances(right_feature_set, x_train_coalition_var, "coalition_feature_variance")
 
 
 def coalition_by_k_means_cluster(x_test, x_train, x_validation, y_test, y_train, y_validation):
@@ -105,11 +104,29 @@ def print_group_i(i, dict_k_train, y_train, threshold):
     size_coalition = calc_size_coalition(coalition, labels_ratio)
     return size_coalition
 
+def test_coalition(x, y, coalition):
+    #test the coalition
+    model = GaussianNB()
+    model.fit(x, y)
+    totalVote = 0
+    for c in coalition:
+        totalVote += model.class_prior_[from_label_to_num[c]]
+    
+    if totalVote >= 0.51:
+        print("The generative coalition is stable")
+    else:
+        print("The generative coalition is NOT stable :(")
+
+    print("Percentage of vote for selected coalition: ", totalVote)
+
 
 def get_coalition_by_clustering(kmeans, x_train, x_validation, y_train, y_validation, k, threshold, x_test, y_test):
-    # for train
+    x_train = x_train.append(x_validation).reset_index(drop=True)
+    y_train = y_train.append(y_validation).reset_index(drop=True)
+
     imp.print_separation_lab("train")
     k_group_labels_train = get_groups_label_using_kmeans(x_train, kmeans)
+    
     dict_k_train = calc_ratio_in_coalition(k_group_labels_train, y_train, k)
     res_size_coalition = []
     for i in range(k):
@@ -118,40 +135,9 @@ def get_coalition_by_clustering(kmeans, x_train, x_validation, y_train, y_valida
 
     coalition_train = print_max_group(dict_k_train, res_size_coalition, y_train, threshold)
 
-    # for validation
-    imp.print_separation_lab("validation")
-    k_group_labels_validation = get_groups_label_using_kmeans(x_validation, kmeans)
-    dict_k_validation = calc_ratio_in_coalition(k_group_labels_validation, y_validation, k)
-    res_size_coalition = []
-    for i in range(k):
-        size_coalition = print_group_i(i, dict_k_validation, y_validation, threshold)
-        res_size_coalition.append((size_coalition, i))
+    test_coalition(x_test, y_test, coalition_train)
 
-    coalition_validation = print_max_group(dict_k_validation, res_size_coalition, y_validation, threshold)
-
-    # final coalition
-    imp.print_separation_lab("final coalition")
-    print("final coalition is like train and validation coalition")
-    final_coalition = coalition_train
-    print(final_coalition)
-
-    # for test
-    imp.print_separation_lab("test")
-    k_group_labels_test = get_groups_label_using_kmeans(x_test, kmeans)
-    dict_k_test = calc_ratio_in_coalition(k_group_labels_test, y_test, k)
-    res_size_coalition = []
-    for i in range(k):
-        size_coalition = print_group_i(i, dict_k_test, y_test, threshold)
-        res_size_coalition.append((size_coalition, i))
-
-    coalition_test = print_max_group(dict_k_test, res_size_coalition, y_test, threshold)
-
-    print()
-    print("the final coalition is stable?")
-    print("the answer is: ")
-    print(final_coalition == coalition_test)
-
-    return final_coalition
+    return coalition_train
 
 
 def print_max_group(dict_k_train, res_size_coalition, y_train, threshold):
@@ -173,8 +159,6 @@ def print_max_group(dict_k_train, res_size_coalition, y_train, threshold):
     print("this size of the coalition is: ")
     print(coalition_size)
     return coalition
-
-
 
 def calc_size_coalition(coalition, labels_ratio):
     sum_ratio = 0
@@ -230,7 +214,8 @@ def get_generative_coalition(x_test, x_train, x_validation, y_test, y_train, y_v
     i = 0
     coal = list()
     coal.append(from_num_to_label[np.argmax(model.class_prior_)])
-
+    
+    print("For each party, press 1 to keep or 0 to discard")
     for prob in model.class_prior_:
         if from_num_to_label[i] not in coal:
             coal.append(from_num_to_label[i])
@@ -244,20 +229,8 @@ def get_generative_coalition(x_test, x_train, x_validation, y_test, y_train, y_v
     print("The manual selection using the generative model gave us the following coalition:")
     print(coal)
     
+    test_coalition(x_test, y_test, coal)
 
-    #test the coalition
-    model = GaussianNB()
-    model.fit(x_test, y_test)
-    totalVote = 0
-    for c in coal:
-        totalVote += model.class_prior_[from_label_to_num[c]]
-    
-    if totalVote >= 0.51:
-        print("The generative coalition is stable")
-    else:
-        print("The generative coalition is NOT stable :(")
-
-    print("Percentage of vote for selected coalition: ", totalVote)
     print_variance_after_choose_coalition(coal, x_test)
     
 

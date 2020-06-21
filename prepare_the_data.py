@@ -95,15 +95,10 @@ def apply_feature_selection(df_train, df_test, df_validation, feature_set):
 
 def normalize(df_test: pd.DataFrame, df_train: pd.DataFrame, df_validation: pd.DataFrame):
     # min-max for uniform features
-    uniform_scaler = MinMaxScaler(feature_range=(-1, 1))
-    df_train[uniform_features_right_features] = uniform_scaler.fit_transform(df_train[uniform_features_right_features])
-    df_validation[uniform_features_right_features] = uniform_scaler.transform(df_validation[uniform_features_right_features])
-    df_test[uniform_features_right_features] = uniform_scaler.transform(df_test[uniform_features_right_features])
-
-    #quick fix
-    df_train[["Most_Important_Issue"]] = uniform_scaler.fit_transform(df_train[["Most_Important_Issue"]])
-    df_validation[["Most_Important_Issue"]] = uniform_scaler.transform(df_validation[["Most_Important_Issue"]])
-    df_test[["Most_Important_Issue"]] = uniform_scaler.transform(df_test[["Most_Important_Issue"]])
+    #uniform_scaler = MinMaxScaler(feature_range=(-1, 1))
+    #df_train[uniform_features_right_features] = uniform_scaler.fit_transform(df_train[uniform_features_right_features])
+    #df_validation[uniform_features_right_features] = uniform_scaler.transform(df_validation[uniform_features_right_features])
+    #df_test[uniform_features_right_features] = uniform_scaler.transform(df_test[uniform_features_right_features])
 
     # z-score for normal features
     normal_scaler = StandardScaler()
@@ -111,10 +106,15 @@ def normalize(df_test: pd.DataFrame, df_train: pd.DataFrame, df_validation: pd.D
     df_validation[normal_features_right_features] = normal_scaler.transform(df_validation[normal_features_right_features])
     df_test[normal_features_right_features] = normal_scaler.transform(df_test[normal_features_right_features])
 
-    #now everyone will be between -1 and 1
-    df_train[normal_features_right_features] = uniform_scaler.fit_transform(df_train[normal_features_right_features])
-    df_validation[normal_features_right_features] = uniform_scaler.transform(df_validation[normal_features_right_features])
-    df_test[normal_features_right_features] = uniform_scaler.transform(df_test[normal_features_right_features])
+    #quick fix
+    df_train[["Most_Important_Issue"]] = normal_scaler.fit_transform(df_train[["Most_Important_Issue"]])
+    df_validation[["Most_Important_Issue"]] = normal_scaler.transform(df_validation[["Most_Important_Issue"]])
+    df_test[["Most_Important_Issue"]] = normal_scaler.transform(df_test[["Most_Important_Issue"]])
+
+    ##now everyone will be between -1 and 1
+    #df_train[normal_features_right_features] = uniform_scaler.fit_transform(df_train[normal_features_right_features])
+    #df_validation[normal_features_right_features] = uniform_scaler.transform(df_validation[normal_features_right_features])
+    #df_test[normal_features_right_features] = uniform_scaler.transform(df_test[normal_features_right_features])
 
     return df_train, df_test, df_validation
 

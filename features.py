@@ -44,7 +44,8 @@ normal_features = ['Avg_education_importance',
                    'Overall_happiness_score',
                    'Phone_minutes_10_years',
                    'Political_interest_Total_Score',
-                   'Weighted_education_rank']
+                   'Weighted_education_rank',
+                   'Yearly_IncomeK']
 
 normal_features_right_features = [
                    'Avg_monthly_income_all_years',
@@ -53,7 +54,8 @@ normal_features_right_features = [
                    'Number_of_differnt_parties_voted_for',
                    'Overall_happiness_score',
                    'Political_interest_Total_Score',
-                   'Weighted_education_rank']
+                   'Weighted_education_rank',
+                   'Yearly_IncomeK']
 
 
 right_feature_set = ["Vote",
@@ -68,7 +70,7 @@ right_feature_set = ["Vote",
                      "Weighted_education_rank"]
 
 
-uniform_features_right_features = ['Yearly_IncomeK']
+uniform_features_right_features = []
 
 uniform_features = ['Avg_government_satisfaction',
                     'Financial_balance_score_(0-1)',
@@ -78,8 +80,8 @@ uniform_features = ['Avg_government_satisfaction',
                     '%Time_invested_in_work',
                     '%Of_Household_Income',
                     '%_satisfaction_financial_policy',
-                    'Yearly_ExpensesK',
-                    'Yearly_IncomeK']
+                    'Yearly_ExpensesK'
+                    ]
 
 nominal_features = ['Age_group',
                     'Looking_at_poles_results',
