@@ -19,11 +19,6 @@ labels = ['Blues', 'Browns', 'Greens', 'Greys', 'Khakis',
           'Oranges', 'Pinks', 'Purples', 'Reds',
           'Turquoises', 'Violets', 'Whites', 'Yellows']
 
-def print_separation_lab(text):
-    print("################################################################")
-    print("################################################################")
-    print("########################  ", text, "  ###############################")
-
 
 def winner_party(clf, x_test):
     y_test_pred_probability = np.mean(clf.predict_proba(x_test), axis=0)

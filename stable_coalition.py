@@ -6,8 +6,10 @@ from sklearn.naive_bayes import GaussianNB
 
 import implements_the_modeling as imp
 
-from features import right_feature_set
-
+right_feature_set = ["Yearly_IncomeK", "Number_of_differnt_parties_voted_for", "Political_interest_Total_Score",
+                     "Avg_Satisfaction_with_previous_vote", "Avg_monthly_income_all_years",
+                     "Most_Important_Issue", "Overall_happiness_score", "Avg_size_per_room",
+                     "Weighted_education_rank"]
 
 from_num_to_label = {0: 'Blues', 1: 'Browns', 2: 'Greens', 3: 'Greys', 4: 'Khakis',
                      5: 'Oranges', 6: 'Pinks', 7: 'Purples', 8: 'Reds',
@@ -77,13 +79,38 @@ def print_variance_before_choose_coalition(x_train):
     x_train_var = x_train.var(axis=0)[right_feature_set]
     draw_variances(right_feature_set, x_train_var, "feature_variance")
 
-
-def print_variance_after_choose_coalition(coalition_by_k_means_clustering, x_train):
+def get_data_for_coalition(coalition, x, y):
     coalition_index = []
-    for party in coalition_by_k_means_clustering:
+    for party in coalition:
         coalition_index.append(from_label_to_num[party])
-    x_train_coalition = x_train.loc[coalition_index]
-    x_train_coalition_var = x_train_coalition.var(axis=0)[right_feature_set]
+
+    data = []
+    i = 0
+    for a in y:
+        if a in coalition_index:
+            data.append(x.iloc[i, :])
+        i += 1
+
+    data = np.array(data)
+
+    return data.mean(axis=0)
+
+def print_variance_after_choose_coalition(coalition, x_train, y_train):
+    coalition_index = []
+    for party in coalition:
+        coalition_index.append(from_label_to_num[party])
+
+    data = []
+    i = 0
+    for a in y_train:
+        if a in coalition_index:
+            data.append(x_train.iloc[i, :])
+        i += 1
+    
+    data = np.array(data)
+    x_train_coalition_var = data.var(axis=0)
+
+    print("AVG Variance: ", np.mean(x_train_coalition_var))
     draw_variances(right_feature_set, x_train_coalition_var, "coalition_feature_variance")
 
 
@@ -113,9 +140,9 @@ def test_coalition(x, y, coalition):
         totalVote += model.class_prior_[from_label_to_num[c]]
     
     if totalVote >= 0.51:
-        print("The generative coalition is stable")
+        print("The chosen coalition is stable")
     else:
-        print("The generative coalition is NOT stable :(")
+        print("The chosen coalition is NOT stable :(")
 
     print("Percentage of vote for selected coalition: ", totalVote)
 
@@ -123,8 +150,8 @@ def test_coalition(x, y, coalition):
 def get_coalition_by_clustering(kmeans, x_train, x_validation, y_train, y_validation, k, threshold, x_test, y_test):
     x_train = x_train.append(x_validation).reset_index(drop=True)
     y_train = y_train.append(y_validation).reset_index(drop=True)
-
-    imp.print_separation_lab("train")
+    
+    print("Automatically choosing coalition by clustering")
     k_group_labels_train = get_groups_label_using_kmeans(x_train, kmeans)
     
     dict_k_train = calc_ratio_in_coalition(k_group_labels_train, y_train, k)
@@ -134,6 +161,8 @@ def get_coalition_by_clustering(kmeans, x_train, x_validation, y_train, y_valida
         res_size_coalition.append((size_coalition, i))
 
     coalition_train = print_max_group(dict_k_train, res_size_coalition, y_train, threshold)
+    print("The coalition chosen by clustering is ")
+    print(coalition_train)
 
     test_coalition(x_test, y_test, coalition_train)
 
@@ -147,17 +176,15 @@ def print_max_group(dict_k_train, res_size_coalition, y_train, threshold):
         if size_coalition > max_size_coalition:
             max_index_group = i
             max_size_coalition = size_coalition
-    print()
-    print("the max size group is: ")
-    print_group_i(max_index_group, dict_k_train, y_train, threshold)
+
+    #print_group_i(max_index_group, dict_k_train, y_train, threshold)
     group_max = dict_k_train[max_index_group]
-    # print(group_max)
+
     coalition, opposition = get_coalition_opposition(group_max, threshold)
-    print(coalition)
+   
     labels_ratio = y_train.value_counts(normalize=True)
     coalition_size = calc_size_coalition(coalition, labels_ratio)
-    print("this size of the coalition is: ")
-    print(coalition_size)
+    
     return coalition
 
 def calc_size_coalition(coalition, labels_ratio):
@@ -197,20 +224,20 @@ def main():
     x_test, x_train, x_validation, y_test, y_train, y_validation = load_prepared_data()
 
     print_variance_before_choose_coalition(x_train)
-    coalition_by_k_means_clustering = coalition_by_k_means_cluster(x_test, x_train, x_validation,
+    coalition_clustering = coalition_by_k_means_cluster(x_test, x_train, x_validation,
                                                                 y_test, y_train, y_validation)
 
-    print_variance_after_choose_coalition(coalition_by_k_means_clustering, x_train)
-
+    print_variance_after_choose_coalition(coalition_clustering, x_train, y_train)
 
     get_generative_coalition(x_test, x_train, x_validation, y_test, y_train, y_validation)
    
 
 
 def get_generative_coalition(x_test, x_train, x_validation, y_test, y_train, y_validation):
+    print("\nManually chosing the coalition using a generative model")
     model = GaussianNB()
     model.fit(x_train, y_train)
-    print(model.class_prior_)
+
     i = 0
     coal = list()
     coal.append(from_num_to_label[np.argmax(model.class_prior_)])
@@ -219,7 +246,14 @@ def get_generative_coalition(x_test, x_train, x_validation, y_test, y_train, y_v
     for prob in model.class_prior_:
         if from_num_to_label[i] not in coal:
             coal.append(from_num_to_label[i])
-            print_variance_after_choose_coalition(coal, x_validation)
+
+            #Evaluate euclidian dist between coalition and opposition
+            opposition = [l for l in labels if l not in coal]
+            x1 = get_data_for_coalition(coal, x_validation, y_validation)
+            x2 = get_data_for_coalition(opposition, x_validation, y_validation)
+            print(np.linalg.norm(x1-x2))
+
+            print_variance_after_choose_coalition(coal, x_validation, y_validation)
 
             res = input()
             if res != "1":
@@ -231,7 +265,7 @@ def get_generative_coalition(x_test, x_train, x_validation, y_test, y_train, y_v
     
     test_coalition(x_test, y_test, coal)
 
-    print_variance_after_choose_coalition(coal, x_test)
+    print_variance_after_choose_coalition(coal, x_validation, y_validation)
     
 
 if __name__ == '__main__':
