@@ -118,7 +118,7 @@ def coalition_by_k_means_cluster(x_test, x_train, x_validation, y_test, y_train,
     k = 3
     threshold = 0.45
     kmeans = KMeans(n_clusters=k, init='k-means++', max_iter=600, n_init=10, random_state=0)
-    coalition_by_k_means_clustering = get_coalition_by_clustering(kmeans, x_train, x_validation,
+    coalition_by_k_means_clustering = get_coalition_cluster(kmeans, x_train, x_validation,
                                                                   y_train, y_validation, k, threshold
                                                                   , x_test, y_test)
     return coalition_by_k_means_clustering
@@ -147,7 +147,7 @@ def test_coalition(x, y, coalition):
     print("Percentage of vote for selected coalition: ", totalVote)
 
 
-def get_coalition_by_clustering(kmeans, x_train, x_validation, y_train, y_validation, k, threshold, x_test, y_test):
+def get_coalition_cluster(kmeans, x_train, x_validation, y_train, y_validation, k, threshold, x_test, y_test):
     x_train = x_train.append(x_validation).reset_index(drop=True)
     y_train = y_train.append(y_validation).reset_index(drop=True)
     
