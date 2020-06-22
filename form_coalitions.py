@@ -219,18 +219,75 @@ def which_group_is_bigger(two_group_labels_train, position, k):
     len_list.sort()
     return len_list.index(len_list[-position])
 
-
-def main():
-    x_test, x_train, x_validation, y_test, y_train, y_validation = load_prepared_data()
-
+def get_clustering_coalition(x_test, x_train, x_validation, y_test, y_train, y_validation):
     print_variance_before_choose_coalition(x_train)
     coalition_clustering = coalition_by_k_means_cluster(x_test, x_train, x_validation,
                                                                 y_test, y_train, y_validation)
 
     print_variance_after_choose_coalition(coalition_clustering, x_train, y_train)
 
+
+def main():
+    x_test, x_train, x_validation, y_test, y_train, y_validation = load_prepared_data()
+
+    get_clustering_coalition(x_test, x_train, x_validation, y_test, y_train, y_validation)
     get_generative_coalition(x_test, x_train, x_validation, y_test, y_train, y_validation)
+    get_every_party_lead_feat(x_train, y_train)
+    get_strong_coalition(x_train, y_train, x_test, y_test)
    
+def get_strong_coalition(x_train, y_train, x_test, y_test):
+    coalition = ['Greens', 'Greys', 'Khakis', 'Oranges', 'Pinks', 'Reds', 'Turquoises', 'Whites', 'Yellows']
+    x_backup = x_train.copy()
+    
+    model = GaussianNB()
+    model.fit(x_train, y_train)
+    y_test_pred_probability = np.mean(model.predict_proba(x_test), axis=0)
+    totalVote = 0
+    for c in coalition:
+        totalVote += y_test_pred_probability[from_label_to_num[c]]
+    print(totalVote)
+
+    list_features = list()
+    max = totalVote
+    for f in right_feature_set:
+        x_train[f] += 1.5
+        totalVote = 0
+        model = GaussianNB()
+        model.fit(x_train, y_train)
+        y_test_pred_probability = np.mean(model.predict_proba(x_test), axis=0)
+
+        for c in coalition:
+            totalVote += y_test_pred_probability[from_label_to_num[c]]
+        
+        print(f)
+        print(totalVote)
+        if totalVote <= max:
+            x_train = x_backup.copy()
+        else:
+            x_backup = x_train.copy()
+            list_features.append(f)
+            max = totalVote
+
+    model = GaussianNB()
+    model.fit(x_train, y_train)
+    y_test_pred_probability = np.mean(model.predict_proba(x_test), axis=0)
+    totalVote = 0
+    for c in coalition:
+        totalVote += y_test_pred_probability[from_label_to_num[c]]
+    print("The stronger coalition gets a probability of ", totalVote)
+    print("The modified features are ", list_features)
+    return
+
+
+def get_every_party_lead_feat(x_train, y_train):
+    for party in labels:
+        print(party)
+        
+        x_train_coalition_var = x_train[y_train == from_label_to_num[party]].var(axis=0)
+
+        print(x_train.columns.values[x_train_coalition_var <= 0.5])
+        print()
+
 
 
 def get_generative_coalition(x_test, x_train, x_validation, y_test, y_train, y_validation):
